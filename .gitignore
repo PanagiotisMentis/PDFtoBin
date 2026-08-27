@@ -1,11 +1,10 @@
 build/
 .vscode/
+.venv
 CMakeCache.txt
 CMakeFiles/
 vcpkg_installed/
-.venv
 dist/
 gui.spec
 nocturne.pdf
-.previews/
-.binfiles/
+binfiles/
