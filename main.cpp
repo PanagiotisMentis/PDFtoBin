@@ -17,44 +17,54 @@
 const int TARGET_WIDTH = 680;
 const int TARGET_HEIGHT = 960;
 
-// bool packCStyleArray(int width, int height, int stride, const unsigned char* data, std::string filename, std::string arrayname) {
-//     int bytesPerPixel = stride / width;
 
-//     std::ofstream outFile(filename);
-//     outFile << "const unsigned char " << arrayname << "[] PROGMEM = {\n";
 
-//     // Vertically pack bits into C-style array for GXEPD2 Rendering.
-//     int byteCount = 0;
-//     for (int pixelX = TARGET_WIDTH; pixelX >= 0; --pixelX) {
-//         for (int pixelY = 0; pixelY < TARGET_HEIGHT; pixelY += 8) {
-//             unsigned char currentByte = 0;
+// -----OBSOLETE--------------------------------
+// Old function that takes a C-Style Array with width, height, stride, and an output array name and preview filename.
+// Returns true upon success and outputs a C-Style array of image data to a new file. 
+bool packCStyleArray(int width, int height, int stride, const unsigned char* data, std::string filename, std::string arrayname) {
+    int bytesPerPixel = stride / width;
 
-//             // Squash a vertical strip of 8 bits into currentByte
-//             for (int bit = 0; bit < 8; ++bit) {
-//                 // Get exact vertical bit within the current pixel.
-//                 int bitY = pixelY + bit;
-//                 // Pointer to the actual pixel at this vertical bit.
-//                 auto* verticalBitsPixel = data + (bitY * stride) + (pixelX * bytesPerPixel);
+    std::ofstream outFile(filename);
+    outFile << "const unsigned char " << arrayname << "[] PROGMEM = {\n";
+
+    // Vertically pack bits into C-style array for GXEPD2 Rendering.
+    int byteCount = 0;
+    for (int pixelX = TARGET_WIDTH; pixelX >= 0; --pixelX) {
+        for (int pixelY = 0; pixelY < TARGET_HEIGHT; pixelY += 8) {
+            unsigned char currentByte = 0;
+
+            // Squash a vertical strip of 8 bits into currentByte
+            for (int bit = 0; bit < 8; ++bit) {
+                // Get exact vertical bit within the current pixel.
+                int bitY = pixelY + bit;
+                // Pointer to the actual pixel at this vertical bit.
+                auto* verticalBitsPixel = data + (bitY * stride) + (pixelX * bytesPerPixel);
                 
-//                 if (*verticalBitsPixel < 128) {
-//                     // Bitwise OR [currentByte] with [00000001 shifted left by (7 - bit) bits]
-//                     // => store result in currentByte.
-//                     currentByte |= (1 << (7-bit)); // Pack the MSB
-//                 }
-//             }
+                if (*verticalBitsPixel < 128) {
+                    // Bitwise OR [currentByte] with [00000001 shifted left by (7 - bit) bits]
+                    // => store result in currentByte.
+                    currentByte |= (1 << (7-bit)); // Pack the MSB
+                }
+            }
 
-//             outFile << "0x" << std::hex << std::setw(2) << std::setfill('0') << (int)currentByte << ", ";
-//             if (++byteCount % 12 == 0) {
-//                 outFile << "\n  ";
-//             }
-//         }
-//     }
+            outFile << "0x" << std::hex << std::setw(2) << std::setfill('0') << (int)currentByte << ", ";
+            if (++byteCount % 12 == 0) {
+                outFile << "\n  ";
+            }
+        }
+    }
 
-//     outFile << "\n};";
-//     std::cout << "Generated header with " << byteCount << " bytes." << std::endl;
-//     return true;
-// }
+    outFile << "\n};";
+    std::cout << "Generated header with " << byteCount << " bytes." << std::endl;
+    return true;
+}
+//------------------------------------
 
+
+// Takes a pointer to an image data char array with height, width, 
+// and stride (bytes per row) and output filename.
+// Returns true upon success and creates a .bin file of parsed image data.
 bool packBinaryFile(int width, int height, int stride, const unsigned char* data, std::string filename) {
     std::ofstream outFile(filename, std::ios::binary);
     
@@ -95,12 +105,16 @@ bool packBinaryFile(int width, int height, int stride, const unsigned char* data
     }
 
     outFile.close();
-    std::cout << "Generated " << filename << " (" << byteCount << " bytes)." << std::endl;
+    // std::cout << "Generated " << filename << " (" << byteCount << " bytes)." << std::endl;
     return true;
 }
 
+
+// Takes a vector (1d) of copied image data. Basically an array of bytes for each pixel. 
+// height, width, and stride (bytes per row).
+// Returns true upon success, modifies the image data in place to apply Atkinson Dithering for image blending.
 bool atkinsonDither(std::vector<unsigned char>& data, int width, int height, int stride) {
-    int threshold = 128;
+    int threshold = 200;
 
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
@@ -137,6 +151,7 @@ bool atkinsonDither(std::vector<unsigned char>& data, int width, int height, int
     return true;
 }
 
+// Takes 
 bool savePreviewPNG(const std::vector<unsigned char>& ditheredData, int w, int h, int stride, std::string filename) {
     // stbi_write_png(path, width, height, channels, data, stride_in_bytes)
     bool success = stbi_write_png(filename.c_str(), w, h, 1, ditheredData.data(), stride);   
@@ -155,43 +170,64 @@ bool clearFolder (const std::string& path) {
     return true;
 }
 
-void checkFolder(const std::string& path) {
+bool checkFolder(const std::string& path) {
     if (std::filesystem::exists(path)) {
-        return;
+        return false;
     }
     std::filesystem::create_directories(path);
+    return true;
 }
 
-int main() {
-    auto* doc = poppler::document::load_from_file("../nocturne.pdf");
+int main(int argc, char* argv[]) {
+    // Main is called from a Python GUI, so parameters are passed through argv[].
+
+    // --- PATH LOGIC UPDATE ---
+    std::string inputPdfPath = "../pdf.pdf"; // Default for dev
+    std::string baseOutputPath = "../";      // Default for dev
+
+    // If Python provides arguments: argv[1] = output_dir, argv[2] = input_pdf
+    if (argc >= 3) {
+        baseOutputPath = argv[1];
+        inputPdfPath = argv[2];
+        
+        // Ensure output path ends with a slash
+        if (baseOutputPath.back() != '/' && baseOutputPath.back() != '\\') {
+            baseOutputPath += "/";
+        }
+    }
+
+    // Load the document from the path provided
+    auto* doc = poppler::document::load_from_file(inputPdfPath);
     if (!doc) {
-        std::cerr << "Failed to load PDF." << std::endl;
+        std::cerr << "Failed to load PDF at: " << inputPdfPath << std::endl;
         return 1;
     }
 
     auto pageCount = doc->pages();
 
-    // Clear bin files folder and previews folder.
-    std::string previewPath = "../previews/";
-    std::string binPath = "../binfiles/";
-    checkFolder(previewPath);
-    checkFolder(binPath);
+    // Define subfolders based on the base output path
+    std::string previewPath = baseOutputPath + "previews/";
+    std::string binPath = baseOutputPath + "binfiles/";
 
-    if (!std::filesystem::exists(previewPath)) {
-        std::filesystem::create_directories(previewPath);
+    // Create folders if they don't exist
+    std::filesystem::create_directories(previewPath);
+    std::filesystem::create_directories(binPath);
+
+    // Clear existing files
+    if (!clearFolder(previewPath) || !clearFolder(binPath)) {
+        std::cerr << "Error clearing output folders." << std::endl;
+        return 1;
     }
 
-    if (!clearFolder(previewPath)) {
-        std::cerr << "Couldn't clear the preview folder.";
-    }
-    if (!clearFolder(binPath)) {
-        std::cerr << "Couldn't clear the bin files folder.";
-    }
+    // Inform Python GUI of total pages
+    std::cout << "TOTAL_PAGES:" << pageCount << std::endl;
 
-    // Loop through each page in PDF
+    // Loop through each page
     for (int currentPage = 0; currentPage < pageCount; ++currentPage) {
         auto* pg = doc->create_page(currentPage);
-        if (!pg) return 1;
+        if (!pg) {
+            return 1; // C++ error code for main
+        }
 
         poppler::page_renderer renderer;
         renderer.set_image_format(poppler::image::format_gray8);
@@ -203,39 +239,38 @@ int main() {
 
         int w = img.width();
         int h = img.height();
+
+        // Memory width of 1 row
         int stride = img.bytes_per_row();
 
-        std::cout << "Rendered at: " << w << "x" << h << std::endl;
-
-        // Get pointer to image data and create a mutable copy for dithering.
-        auto* data = reinterpret_cast<const unsigned char*>(img.const_data());
+        // Make a COPY of the image data.
+        // Notice how it's initializew with parenthesis: (first pointer, last pointer)
+        // NOT with brackets: {first pointer, last pointer}.
         std::vector<unsigned char> ditherData(
+            // Pointer to the first pixel char
             reinterpret_cast<const unsigned char*>(img.const_data()), 
+
+            // Pointer to the last pixel char
+            // (first pixel pointer) + (height * width of a row)
             reinterpret_cast<const unsigned char*>(img.const_data() + (h * stride))
         );
 
-        if (!atkinsonDither(ditherData, w, h, stride)) {
-            std::cerr << "Couldn't apply Atkinson dithering." << std::endl;
-        }
+        atkinsonDither(ditherData, w, h, stride);
 
-        // if (!packCStyleArray(w, h, stride, ditherData.data(), std::to_string(currentPage) + "atkinson.h", std::to_string(currentPage) + "atkinson_image")) {
-        //     std::cerr << "Couldn't pack the image data into a C-Style array." << std::endl;
-        // }
-
-        // Output bin files to bin folder.
+        // Save Binary
         std::string binFilename = binPath + "music" + std::to_string(currentPage) + "_gxepd2.bin";
-        if (!packBinaryFile(w, h, stride, ditherData.data(), binFilename)) {
-        std::cerr << "Couldn't pack the image data into binary file." << std::endl;
-        }
+        packBinaryFile(w, h, stride, ditherData.data(), binFilename);
 
-        // Output preview PNGS files to previews folder.
+        // Save Preview
         std::string previewFilePath = previewPath + std::to_string(currentPage) + "preview.png";
-        if (!savePreviewPNG(ditherData, w, h, stride, previewFilePath)) {
-            std::cerr << "Couldn't save Atkinson preview to previews folder.";
-        }
+        savePreviewPNG(ditherData, w, h, stride, previewFilePath);
 
+        // Inform Python GUI of progress
+        std::cout << "PROGRESS_PAGE:" << currentPage + 1 << std::endl;
+        
         delete pg;
     }
+
     delete doc;
     return 0;
 }
