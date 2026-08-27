@@ -255,6 +255,7 @@ int main(int argc, char* argv[]) {
             reinterpret_cast<const unsigned char*>(img.const_data() + (h * stride))
         );
 
+        // Modify ditherData in place and apply dithering
         atkinsonDither(ditherData, w, h, stride);
 
         // Save Binary
