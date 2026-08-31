@@ -69,6 +69,7 @@ int main(int argc, char* argv[]) {
             return 1; // C++ error code for main
         }
 
+        // Use poppler to make renderer and pages
         poppler::page_renderer renderer;
         renderer.set_image_format(poppler::image::format_gray8);
 
