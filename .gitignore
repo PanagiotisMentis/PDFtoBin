@@ -7,4 +7,3 @@ vcpkg_installed/
 dist/
 gui.spec
 nocturne.pdf
-binfiles/
