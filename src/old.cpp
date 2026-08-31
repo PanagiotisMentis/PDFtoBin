@@ -17,8 +17,6 @@
 const int TARGET_WIDTH = 680;
 const int TARGET_HEIGHT = 960;
 
-
-
 // -----OBSOLETE--------------------------------
 // Old function that takes a C-Style Array with width, height, stride, and an output array name and preview filename.
 // Returns true upon success and outputs a C-Style array of image data to a new file. 
