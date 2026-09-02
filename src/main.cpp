@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
     std::string inputPdfPath = "../pdf.pdf"; // Default for dev
     std::string baseOutputPath = "../";      // Default for dev
 
-    // If Python provides arguments: argv[1] = output_dir, argv[2] = input_pdf
+    // If Python (or command line) provides arguments: argv[1] = output_dir, argv[2] = input_pdf
     if (argc >= 3) {
         baseOutputPath = argv[1];
         inputPdfPath = argv[2];
@@ -73,15 +73,22 @@ int main(int argc, char* argv[]) {
         poppler::page_renderer renderer;
         renderer.set_image_format(poppler::image::format_gray8);
 
+        // Horizontal and Vertical DPI needed to scale a page to TARGET_WIDTH and TARGET_HEIGHT (with respect to 72 DPI).
+        // 72.0 DPI is digital standard (PDF).
+        //
+        // If dpiX and Y are above 72.0, the image is too big and needs to be scaled down (more dots per inch).
+        // If dpiX and Y are below 72.0, the image is too small and needs to be scaled up (fewer dots per inch).
+        // If dpiX and Y are exactly 72.0, the image is the right size for TARGET_WIDTH and TARGET_HEIGHT.
         auto dpiX = (static_cast<double>(TARGET_WIDTH) / pg->page_rect().width()) * 72.0;
         auto dpiY = (static_cast<double>(TARGET_HEIGHT) / pg->page_rect().height()) * 72.0;
         
+        // Render a page with the x resolution and y resolution as dpiX and dpiYs
         auto img = renderer.render_page(pg, dpiX, dpiY);
 
         int w = img.width();
         int h = img.height();
 
-        // Memory width of 1 row
+        // Stride is the memory width (bytes) of 1 row
         int stride = img.bytes_per_row();
 
         // Make a COPY of the image data.
