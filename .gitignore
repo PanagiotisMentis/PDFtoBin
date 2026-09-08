@@ -1,9 +1,14 @@
-build/
 .vscode/
 .venv
+__pycache__/
+
+build/
+archive/
+output_directories/
+
 CMakeCache.txt
 CMakeFiles/
 vcpkg_installed/
-dist/
-gui.spec
+
 nocturne.pdf
+pydantic_core-2.27.2-pp310-pypy310_pp73-win_amd64.whl

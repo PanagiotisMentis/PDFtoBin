@@ -8,20 +8,25 @@
 #include <poppler/cpp/poppler-page-renderer.h>
 #include <poppler/cpp/poppler-image.h>
 
-#include "constants.hpp"
-#include "bitpacking.hpp"
-#include "dithering.hpp"
-#include "fileutils.hpp"
+#include "bit_packer.hpp"
+#include "ditherer.hpp"
+#include "file_saver.hpp"
 
-using namespace bitpacking;
+#include "constants.hpp"
 using namespace constants;
-using namespace dithering;
-using namespace fileutils;
+
+// TODO
+// -----------------
+// * Wrap in HTTP Python server, so ESP32 can pull .bin files
+// * Clean up logic here for more readability
 
 int main(int argc, char* argv[]) {
     // Main is called from a Python GUI, so parameters are passed through argv[].
 
-    // --- PATH LOGIC UPDATE ---
+    Ditherer ditherer;
+    FileSaver fileSaver;
+    BitPacker bitPacker;
+
     std::string inputPdfPath = "../pdf.pdf"; // Default for dev
     std::string baseOutputPath = "../";      // Default for dev
 
@@ -54,7 +59,7 @@ int main(int argc, char* argv[]) {
     std::filesystem::create_directories(binPath);
 
     // Clear existing files
-    if (!fileutils::clearFolder(previewPath) || !fileutils::clearFolder(binPath)) {
+    if (!fileSaver.clearFolder(previewPath) || !fileSaver.clearFolder(binPath)) {
         std::cerr << "Error clearing output folders." << std::endl;
         return 1;
     }
@@ -104,15 +109,15 @@ int main(int argc, char* argv[]) {
         );
 
         // Modify ditherData in place and apply dithering
-        dithering::atkinsonDither(ditherData, w, h, stride);
+        ditherer.atkinsonDither(ditherData, w, h, stride);
 
         // Save Binary
         std::string binFilename = binPath + "music" + std::to_string(currentPage) + "_gxepd2.bin";
-        bitpacking::packBinaryFile(w, h, stride, ditherData.data(), binFilename);
+        bitPacker.packBinaryFile(w, h, stride, ditherData.data(), binFilename);
 
         // Save Preview
         std::string previewFilePath = previewPath + std::to_string(currentPage) + "preview.png";
-        fileutils::savePreviewPNG(ditherData, w, h, stride, previewFilePath);
+        fileSaver.savePreviewPNG(ditherData, w, h, stride, previewFilePath);
 
         // Inform Python GUI of progress
         std::cout << "PROGRESS_PAGE:" << currentPage + 1 << std::endl;
